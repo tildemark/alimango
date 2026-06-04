@@ -51,6 +51,7 @@ class DashboardViewModel @Inject constructor(
             val loadedUser = getUserUseCase()
             Log.d("DashboardViewModel", "Loaded User: $loadedUser")
             _userFlow.value = loadedUser
+            triggerSync()
         }
     }
 
@@ -85,6 +86,32 @@ class DashboardViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = null
+        )
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val availableLessonSubjects: StateFlow<List<Subject>> = user
+        .flatMapLatest { u ->
+            if (u != null) {
+                assignmentRepository.observeAllAssignments(u.level).flatMapLatest { assignments ->
+                    val lessonSubjectIds = assignments
+                        .filter { it.unlockedAt != null && it.startedAt == null }
+                        .map { it.subjectId }
+                    if (lessonSubjectIds.isEmpty()) {
+                        flowOf(emptyList())
+                    } else {
+                        subjectRepository.observeAllSubjects().map { allSubjects ->
+                            allSubjects.filter { it.id in lessonSubjectIds }
+                        }
+                    }
+                }
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
         )
 
     // Save notes & synonyms locally from dialog

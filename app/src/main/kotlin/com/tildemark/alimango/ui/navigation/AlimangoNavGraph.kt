@@ -50,8 +50,12 @@ fun AlimangoNavGraph(
                 onStartReviews = {
                     navController.navigate(Screen.ReviewSession.route)
                 },
-                onStartLessons = {
-                    navController.navigate(Screen.LessonSession.route)
+                onStartLessons = { subjectIds ->
+                    if (subjectIds.isNullOrEmpty()) {
+                        navController.navigate("lesson_session")
+                    } else {
+                        navController.navigate(Screen.LessonSession.createRoute(subjectIds))
+                    }
                 },
                 onBrowseItems = {
                     navController.navigate(Screen.ItemsBrowser.route)
@@ -59,7 +63,16 @@ fun AlimangoNavGraph(
             )
         }
 
-        composable(Screen.LessonSession.route) {
+        composable(
+            route = Screen.LessonSession.route,
+            arguments = listOf(
+                navArgument("subjectIds") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) {
             val viewModel: LessonViewModel = hiltViewModel()
             LessonScreen(
                 viewModel = viewModel,

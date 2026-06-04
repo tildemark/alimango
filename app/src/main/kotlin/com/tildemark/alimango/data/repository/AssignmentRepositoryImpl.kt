@@ -14,32 +14,32 @@ class AssignmentRepositoryImpl @Inject constructor(
     private val assignmentDao: AssignmentDao
 ) : AssignmentRepository {
 
-    override fun observeAllAssignments(): Flow<List<Assignment>> {
-        return assignmentDao.observeAllAssignments().map { entities ->
+    override fun observeAllAssignments(userLevel: Int): Flow<List<Assignment>> {
+        return assignmentDao.observeAllAssignments(userLevel).map { entities ->
             entities.map { it.toDomain() }
         }
     }
 
-    override fun observeAvailableReviews(currentTimeIso: String): Flow<List<Assignment>> {
-        return assignmentDao.observeAvailableReviews(currentTimeIso).map { entities ->
+    override fun observeAvailableReviews(currentTimeIso: String, userLevel: Int): Flow<List<Assignment>> {
+        return assignmentDao.observeAvailableReviews(currentTimeIso, userLevel).map { entities ->
             entities.map { it.toDomain() }
         }
     }
 
-    override suspend fun getAvailableReviews(currentTimeIso: String): List<Assignment> {
-        return assignmentDao.getAvailableReviews(currentTimeIso).map { it.toDomain() }
+    override suspend fun getAvailableReviews(currentTimeIso: String, userLevel: Int): List<Assignment> {
+        return assignmentDao.getAvailableReviews(currentTimeIso, userLevel).map { it.toDomain() }
     }
 
-    override fun observeReviewsCount(currentTimeIso: String): Flow<Int> {
-        return assignmentDao.observeReviewsCount(currentTimeIso)
+    override fun observeReviewsCount(currentTimeIso: String, userLevel: Int): Flow<Int> {
+        return assignmentDao.observeReviewsCount(currentTimeIso, userLevel)
     }
 
-    override fun observeLessonsCount(): Flow<Int> {
-        return assignmentDao.observeLessonsCount()
+    override fun observeLessonsCount(userLevel: Int): Flow<Int> {
+        return assignmentDao.observeLessonsCount(userLevel)
     }
 
-    override suspend fun getAvailableLessons(): List<Assignment> {
-        return assignmentDao.getAvailableLessons().map { it.toDomain() }
+    override suspend fun getAvailableLessons(userLevel: Int): List<Assignment> {
+        return assignmentDao.getAvailableLessons(userLevel).map { it.toDomain() }
     }
 
     override suspend fun getAssignmentBySubjectId(subjectId: Int): Assignment? {

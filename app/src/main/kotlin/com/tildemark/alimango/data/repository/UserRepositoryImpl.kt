@@ -44,6 +44,11 @@ class UserRepositoryImpl @Inject constructor(
         return try {
             val response = apiService.getUser()
             val userDto = response.data
+            val cachedLevel = prefs.getInt(keyLevel, -1)
+            if (cachedLevel != -1 && userDto.level != cachedLevel) {
+                Log.d("UserRepositoryImpl", "User level changed from $cachedLevel to ${userDto.level}. Clearing assignment sync metadata to force re-sync.")
+                database.syncMetaDao().deleteSyncMeta("assignments")
+            }
             // Cache user info locally in prefs
             prefs.edit().apply {
                 putString(keyUsername, userDto.username)

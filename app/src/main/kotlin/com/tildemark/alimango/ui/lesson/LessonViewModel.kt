@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import androidx.lifecycle.SavedStateHandle
+
 sealed interface LessonUiState {
     object Loading : LessonUiState
     object Empty : LessonUiState
@@ -45,8 +47,13 @@ data class QuizQuestion(
 @HiltViewModel
 class LessonViewModel @Inject constructor(
     private val getLessonQueueUseCase: GetLessonQueueUseCase,
-    private val startAssignmentUseCase: StartAssignmentUseCase
+    private val startAssignmentUseCase: StartAssignmentUseCase,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    private val customSubjectIds: List<Int>? = savedStateHandle.get<String>("subjectIds")
+        ?.split(",")
+        ?.mapNotNull { it.toIntOrNull() }
 
     private val _uiState = MutableStateFlow<LessonUiState>(LessonUiState.Loading)
     val uiState: StateFlow<LessonUiState> = _uiState.asStateFlow()
@@ -58,7 +65,11 @@ class LessonViewModel @Inject constructor(
     fun loadLessons() {
         viewModelScope.launch {
             _uiState.value = LessonUiState.Loading
-            val lessons = getLessonQueueUseCase()
+            val lessons = if (!customSubjectIds.isNullOrEmpty()) {
+                getLessonQueueUseCase(limit = 9999, subjectIds = customSubjectIds)
+            } else {
+                getLessonQueueUseCase()
+            }
             lessons.forEach { item ->
                 android.util.Log.d("LessonDB", "Subject ID: ${item.subject.id}, type: ${item.subject.type}, characters: ${item.subject.characters}, meanings: ${item.subject.meanings}, readings: ${item.subject.readings}")
             }

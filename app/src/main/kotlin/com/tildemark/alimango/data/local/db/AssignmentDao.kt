@@ -15,24 +15,71 @@ interface AssignmentDao {
     @Query("SELECT * FROM assignments WHERE subjectId = :subjectId")
     suspend fun getAssignmentBySubjectId(subjectId: Int): AssignmentEntity?
 
-    @Query("SELECT * FROM assignments")
-    fun observeAllAssignments(): Flow<List<AssignmentEntity>>
+    @Query("""
+        SELECT assignments.* FROM assignments 
+        JOIN subjects ON assignments.subjectId = subjects.id 
+        WHERE subjects.level <= :userLevel
+    """)
+    fun observeAllAssignments(userLevel: Int): Flow<List<AssignmentEntity>>
 
-    @Query("SELECT * FROM assignments WHERE availableAt IS NOT NULL AND availableAt <= :currentTimeIso")
-    fun observeAvailableReviews(currentTimeIso: String): Flow<List<AssignmentEntity>>
+    @Query("""
+        SELECT assignments.* FROM assignments 
+        JOIN subjects ON assignments.subjectId = subjects.id 
+        WHERE assignments.availableAt IS NOT NULL 
+          AND assignments.availableAt <= :currentTimeIso 
+          AND subjects.level <= :userLevel
+    """)
+    fun observeAvailableReviews(currentTimeIso: String, userLevel: Int): Flow<List<AssignmentEntity>>
 
-    @Query("SELECT * FROM assignments WHERE availableAt IS NOT NULL AND availableAt <= :currentTimeIso")
-    suspend fun getAvailableReviews(currentTimeIso: String): List<AssignmentEntity>
+    @Query("""
+        SELECT assignments.* FROM assignments 
+        JOIN subjects ON assignments.subjectId = subjects.id 
+        WHERE assignments.availableAt IS NOT NULL 
+          AND assignments.availableAt <= :currentTimeIso 
+          AND subjects.level <= :userLevel
+    """)
+    suspend fun getAvailableReviews(currentTimeIso: String, userLevel: Int): List<AssignmentEntity>
 
-    @Query("SELECT COUNT(*) FROM assignments WHERE availableAt IS NOT NULL AND availableAt <= :currentTimeIso")
-    fun observeReviewsCount(currentTimeIso: String): Flow<Int>
+    @Query("""
+        SELECT COUNT(assignments.id) FROM assignments 
+        JOIN subjects ON assignments.subjectId = subjects.id 
+        WHERE assignments.availableAt IS NOT NULL 
+          AND assignments.availableAt <= :currentTimeIso 
+          AND subjects.level <= :userLevel
+    """)
+    fun observeReviewsCount(currentTimeIso: String, userLevel: Int): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM assignments WHERE unlockedAt IS NOT NULL AND startedAt IS NULL")
-    fun observeLessonsCount(): Flow<Int>
+    @Query("""
+        SELECT COUNT(assignments.id) FROM assignments 
+        JOIN subjects ON assignments.subjectId = subjects.id 
+        WHERE assignments.unlockedAt IS NOT NULL 
+          AND assignments.startedAt IS NULL 
+          AND subjects.level <= :userLevel
+    """)
+    fun observeLessonsCount(userLevel: Int): Flow<Int>
 
-    @Query("SELECT * FROM assignments WHERE unlockedAt IS NOT NULL AND startedAt IS NULL")
-    suspend fun getAvailableLessons(): List<AssignmentEntity>
+    @Query("""
+        SELECT assignments.* FROM assignments 
+        JOIN subjects ON assignments.subjectId = subjects.id 
+        WHERE assignments.unlockedAt IS NOT NULL 
+          AND assignments.startedAt IS NULL 
+          AND subjects.level <= :userLevel
+    """)
+    suspend fun getAvailableLessons(userLevel: Int): List<AssignmentEntity>
 
     @Query("UPDATE assignments SET note = :note, userSynonyms = :userSynonyms WHERE subjectId = :subjectId")
     suspend fun updateNoteAndSynonyms(subjectId: Int, note: String, userSynonyms: String)
+
+    @Query("DELETE FROM assignments WHERE id = :id")
+    suspend fun deleteAssignmentById(id: Int)
+
+    @Query("""
+        UPDATE assignments 
+        SET unlockedAt = null, startedAt = null, srsStage = 0, availableAt = null, burnedAt = null, passedAt = null 
+        WHERE id = :id
+    """)
+    suspend fun resetAssignmentProgress(id: Int)
+
+    @Query("SELECT * FROM assignments")
+    suspend fun getAllAssignmentsDirect(): List<AssignmentEntity>
 }

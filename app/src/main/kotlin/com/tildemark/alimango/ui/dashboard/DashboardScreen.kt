@@ -52,18 +52,28 @@ import com.tildemark.alimango.ui.theme.WaniKaniPurple
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.tildemark.alimango.domain.usecase.LevelProgress
+import com.tildemark.alimango.domain.model.Subject
+import com.tildemark.alimango.ui.browser.SubjectDetailDialog
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
     onStartReviews: () -> Unit,
-    onStartLessons: () -> Unit,
+    onStartLessons: (List<Int>?) -> Unit,
     onBrowseItems: () -> Unit
 ) {
     val user by viewModel.user.collectAsState()
     val syncState by viewModel.syncStatus.collectAsState()
     val summary by viewModel.dashboardSummary.collectAsState()
     val progress by viewModel.levelProgress.collectAsState()
+    
+    val activeDetailSubject by viewModel.selectedSubject.collectAsState()
+    val activeAssignment by viewModel.selectedAssignment.collectAsState()
+    val activeRelationships by viewModel.selectedRelationships.collectAsState()
+
+    var showLessonPicker by remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = {
@@ -141,7 +151,7 @@ fun DashboardScreen(
                 Card(
                     modifier = Modifier
                         .weight(1f)
-                        .height(150.dp)
+                        .height(180.dp)
                         .clickable(enabled = reviews > 0) { onStartReviews() },
                     colors = CardDefaults.cardColors(
                         containerColor = if (reviews > 0) WaniKaniPink else MaterialTheme.colorScheme.surfaceVariant
@@ -177,8 +187,7 @@ fun DashboardScreen(
                 Card(
                     modifier = Modifier
                         .weight(1f)
-                        .height(150.dp)
-                        .clickable(enabled = lessons > 0) { onStartLessons() },
+                        .height(180.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = if (lessons > 0) WaniKaniPurple else MaterialTheme.colorScheme.surfaceVariant
                     ),
@@ -191,20 +200,75 @@ fun DashboardScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Lessons",
-                            fontWeight = FontWeight.Bold,
-                            color = if (lessons > 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "$lessons",
-                            fontWeight = FontWeight.Black,
-                            color = if (lessons > 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            fontSize = 44.sp,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Lessons",
+                                fontWeight = FontWeight.Bold,
+                                color = if (lessons > 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                text = "$lessons",
+                                fontWeight = FontWeight.Black,
+                                color = if (lessons > 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                fontSize = 32.sp
+                            )
+                        }
+
+                        if (lessons > 0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Start Lessons Button
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                        .clickable { onStartLessons(null) }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Start",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
+
+                                // Advanced button
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                        .clickable { showLessonPicker = true }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Advanced",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "No lessons",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                fontSize = 14.sp,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
@@ -218,7 +282,7 @@ fun DashboardScreen(
 
             // Level Progress Card
             progress?.let { prog ->
-                LevelProgressCard(progress = prog)
+                LevelProgressCard(progress = prog, onSubjectClick = { viewModel.showSubjectDetail(it) })
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -247,6 +311,34 @@ fun DashboardScreen(
                 }
             }
         }
+    }
+
+    // Detail dialog when an item is clicked
+    activeDetailSubject?.let { subject ->
+        SubjectDetailDialog(
+            subject = subject,
+            assignment = activeAssignment,
+            relationships = activeRelationships,
+            onDismiss = { viewModel.showSubjectDetail(null) },
+            onSaveNotesAndSynonyms = { note, synonyms ->
+                viewModel.saveNoteAndSynonyms(subject.id, note, synonyms)
+            },
+            onNavigateToSubject = { targetSubj ->
+                viewModel.showSubjectDetail(targetSubj)
+            }
+        )
+    }
+
+    if (showLessonPicker) {
+        val availableLessons by viewModel.availableLessonSubjects.collectAsState()
+        LessonPickerDialog(
+            availableSubjects = availableLessons,
+            onDismiss = { showLessonPicker = false },
+            onStartCustomLessons = { selectedIds ->
+                showLessonPicker = false
+                onStartLessons(selectedIds)
+            }
+        )
     }
 }
 
@@ -341,7 +433,10 @@ fun SyncStatusBar(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun LevelProgressCard(progress: LevelProgress) {
+fun LevelProgressCard(
+    progress: LevelProgress,
+    onSubjectClick: (Subject) -> Unit
+) {
     val kanjiProgress = if (progress.kanjiTotal > 0) {
         progress.kanjiPassed.toFloat() / progress.kanjiTotal.toFloat()
     } else {
@@ -423,7 +518,8 @@ fun LevelProgressCard(progress: LevelProgress) {
                                 character = item.subject.characters ?: "",
                                 srsStage = item.srsStage,
                                 isPassed = item.isPassed,
-                                baseColor = WaniKaniBlue
+                                baseColor = WaniKaniBlue,
+                                onClick = { onSubjectClick(item.subject) }
                             )
                         }
                     }
@@ -450,7 +546,36 @@ fun LevelProgressCard(progress: LevelProgress) {
                                 character = item.subject.characters ?: "",
                                 srsStage = item.srsStage,
                                 isPassed = item.isPassed,
-                                baseColor = WaniKaniPink
+                                baseColor = WaniKaniPink,
+                                onClick = { onSubjectClick(item.subject) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Vocabulary section
+            val vocab = progress.items.filter { it.subject.type == "vocabulary" || it.subject.type == "kana_vocabulary" }
+            if (vocab.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Vocabulary Progress (${progress.vocabPassed}/${progress.vocabTotal})",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = WaniKaniPurple
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        vocab.forEach { item ->
+                            LevelSubjectChip(
+                                character = item.subject.characters ?: "",
+                                srsStage = item.srsStage,
+                                isPassed = item.isPassed,
+                                baseColor = WaniKaniPurple,
+                                onClick = { onSubjectClick(item.subject) }
                             )
                         }
                     }
@@ -465,7 +590,8 @@ fun LevelSubjectChip(
     character: String,
     srsStage: Int?,
     isPassed: Boolean,
-    baseColor: Color
+    baseColor: Color,
+    onClick: () -> Unit
 ) {
     val backgroundColor = when {
         isPassed -> baseColor
@@ -487,7 +613,9 @@ fun LevelSubjectChip(
     Box(
         modifier = Modifier
             .size(width = 32.dp, height = 32.dp)
-            .then(borderModifier),
+            .then(borderModifier)
+            .clip(RoundedCornerShape(4.dp))
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -606,6 +734,261 @@ fun SrsForecastCard(forecast: List<Int>) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LessonPickerDialog(
+    availableSubjects: List<Subject>,
+    onDismiss: () -> Unit,
+    onStartCustomLessons: (List<Int>) -> Unit
+) {
+    var selectedIds by remember(availableSubjects) {
+        mutableStateOf(availableSubjects.map { it.id }.toSet())
+    }
+    var selectedTypeFilter by remember { mutableStateOf("all") } // "all", "radical", "kanji", "vocabulary"
+
+    val filteredSubjects = remember(availableSubjects, selectedTypeFilter) {
+        if (selectedTypeFilter == "all") {
+            availableSubjects
+        } else {
+            availableSubjects.filter { it.type == selectedTypeFilter || (selectedTypeFilter == "vocabulary" && it.type == "kana_vocabulary") }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .height(600.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.background,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp)
+            ) {
+                // Header
+                Text(
+                    text = "Lesson Picker",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    text = "Choose the items you want to learn in this custom lesson session.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                )
+
+                // Category Tabs / Filters
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val filters = listOf(
+                        "all" to "All",
+                        "radical" to "Radicals",
+                        "kanji" to "Kanji",
+                        "vocabulary" to "Vocabulary"
+                    )
+                    filters.forEach { (type, label) ->
+                        val isSelected = selectedTypeFilter == type
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (isSelected) {
+                                        when (type) {
+                                            "radical" -> WaniKaniBlue
+                                            "kanji" -> WaniKaniPink
+                                            "vocabulary" -> WaniKaniPurple
+                                            else -> MaterialTheme.colorScheme.primary
+                                        }
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    }
+                                )
+                                .clickable { selectedTypeFilter = type }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bulk Selection Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Select all",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clickable {
+                                val currentFilteredIds = filteredSubjects.map { it.id }.toSet()
+                                selectedIds = selectedIds + currentFilteredIds
+                            }
+                            .padding(8.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Clear selection",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clickable {
+                                val currentFilteredIds = filteredSubjects.map { it.id }.toSet()
+                                selectedIds = selectedIds - currentFilteredIds
+                            }
+                            .padding(8.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Scrollable Subject Grid
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .padding(12.dp)
+                ) {
+                    if (filteredSubjects.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No items available",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                filteredSubjects.forEach { subject ->
+                                    val isChecked = selectedIds.contains(subject.id)
+                                    val color = when (subject.type) {
+                                        "radical" -> WaniKaniBlue
+                                        "kanji" -> WaniKaniPink
+                                        else -> WaniKaniPurple
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(
+                                                if (isChecked) color else color.copy(alpha = 0.15f)
+                                            )
+                                            .clickable {
+                                                selectedIds = if (isChecked) {
+                                                    selectedIds - subject.id
+                                                } else {
+                                                    selectedIds + subject.id
+                                                }
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = subject.characters ?: subject.meanings.firstOrNull() ?: "?",
+                                                color = if (isChecked) Color.White else color,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.sp
+                                            )
+                                            if (isChecked) {
+                                                Text(
+                                                    text = "✓",
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bottom Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { onDismiss() }
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    val hasSelection = selectedIds.isNotEmpty()
+                    Box(
+                        modifier = Modifier
+                            .weight(1.5f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (hasSelection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                            )
+                            .clickable(enabled = hasSelection) {
+                                onStartCustomLessons(selectedIds.toList())
+                            }
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Start (${selectedIds.size})",
+                            fontWeight = FontWeight.Bold,
+                            color = if (hasSelection) Color.White else Color.White.copy(alpha = 0.6f)
+                        )
+                    }
+                }
             }
         }
     }

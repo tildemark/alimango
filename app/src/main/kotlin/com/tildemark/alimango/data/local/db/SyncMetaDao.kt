@@ -13,4 +13,7 @@ interface SyncMetaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSyncMeta(syncMeta: SyncMetaEntity)
+
+    @Query("DELETE FROM sync_meta WHERE resourceType = :resourceType")
+    suspend fun deleteSyncMeta(resourceType: String)
 }

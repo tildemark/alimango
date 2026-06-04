@@ -91,12 +91,23 @@ class SyncWorker @AssistedInject constructor(
     }
 
     private suspend fun syncAssignments() {
-        val lastSynced = syncMetaDao.getLastSyncedAt("assignments")
+        val sharedPrefs = applicationContext.getSharedPreferences("alimango_sync_prefs", Context.MODE_PRIVATE)
+        val hasRunFullSyncCleanup = sharedPrefs.getBoolean("full_sync_cleanup_v2", false)
+        
+        var lastSynced = syncMetaDao.getLastSyncedAt("assignments")
+        if (!hasRunFullSyncCleanup) {
+            Log.d("SyncWorker", "Running one-time full sync cleanup to clear stale assignments")
+            syncMetaDao.deleteSyncMeta("assignments")
+            lastSynced = null
+            sharedPrefs.edit().putBoolean("full_sync_cleanup_v2", true).apply()
+        }
+
         Log.d("SyncWorker", "Syncing assignments. Last synced timestamp: $lastSynced")
 
         var nextUrl: String? = null
         var lastSnapshotTime: String? = null
         var hasMore = true
+        val fetchedAssignmentIds = mutableSetOf<Int>()
 
         while (hasMore) {
             val response = apiService.getAssignments(updatedAfter = lastSynced, nextUrl = nextUrl)
@@ -108,6 +119,7 @@ class SyncWorker @AssistedInject constructor(
             val entities = response.data.map { resource ->
                 val dto = resource.data
                 val existing = assignmentDao.getAssignmentBySubjectId(dto.subjectId)
+                fetchedAssignmentIds.add(resource.id)
                 AssignmentEntity(
                     id = resource.id,
                     subjectId = dto.subjectId,
@@ -130,6 +142,25 @@ class SyncWorker @AssistedInject constructor(
 
             nextUrl = response.pages.nextUrl
             hasMore = nextUrl != null
+        }
+
+        // If doing a full sync, clean up any assignments in local Room DB that do not exist in the remote API response
+        if (lastSynced == null && fetchedAssignmentIds.isNotEmpty()) {
+            val localAssignments = assignmentDao.getAllAssignmentsDirect()
+            var deletedCount = 0
+            var resetCount = 0
+            for (local in localAssignments) {
+                if (!fetchedAssignmentIds.contains(local.id)) {
+                    if (local.note.isNotBlank() || local.userSynonyms.isNotBlank()) {
+                        assignmentDao.resetAssignmentProgress(local.id)
+                        resetCount++
+                    } else {
+                        assignmentDao.deleteAssignmentById(local.id)
+                        deletedCount++
+                    }
+                }
+            }
+            Log.d("SyncWorker", "Stale assignment cleanup: deleted $deletedCount, reset progress for $resetCount due to level reset or deletion.")
         }
 
         if (lastSnapshotTime != null) {

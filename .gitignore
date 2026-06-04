@@ -17,3 +17,6 @@ capture.png
 *.apk
 *.ap_
 *.aab
+*.db
+*.db-shm
+*.db-wal
